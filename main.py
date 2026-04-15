@@ -5,6 +5,11 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from config_loader import load_config
 from scraper import APIMapper
 

@@ -12,15 +12,26 @@
     "enabled": true,
     "fill_delay": 100,
     "defaults": {
-      "#username": "testuser",
-      "#email": "test@example.com",
-      "input[name='password']": "SecurePassword123!"
+      "#email": "test@example.com"
     }
+  },
+  "login": {
+    "login_url": "https://example.com/login",
+    "username_env": "APP_USERNAME",
+    "password_env": "APP_PASSWORD",
+    "username_selector": "#username",
+    "password_selector": "input[type='password']",
+    "submit_selector": "button[type='submit']",
+    "post_login_wait_ms": 3000,
+    "storage_state_path": "storage_state.json",
+    "reuse_storage_state": true
   },
   "exclude_patterns": [
     "logout",
     "delete",
-    "remove"
+    "remove",
+    "login",
+    "signin"
   ],
   "output_file": "mappings_output.json"
 }

@@ -1,10 +1,12 @@
 """Main API mapping engine: orchestrates navigation, interception, and aggregation."""
 import logging
+import os
 from typing import Any, Dict
 
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
 from config_loader import Config
+from .auth import is_on_login_page, perform_login, storage_state_valid
 from .navigation import NavigationHandler
 from .navigation.dom_hasher import DOMHasher
 from .navigation.selectors import INTERACTIVE_SELECTORS, POPUP_CONTAINER_SELECTORS
@@ -27,6 +29,7 @@ class APIMapper:
         self.context: BrowserContext = None
         self.page: Page = None
         self._capture: RequestCapture = None
+        self._used_reused_storage: bool = False
 
     async def initialize(self) -> None:
         self.playwright = await async_playwright().start()
@@ -34,12 +37,21 @@ class APIMapper:
             headless=True,
             args=['--disable-blink-features=AutomationControlled'],
         )
-        self.context = await self.browser.new_context(
+
+        context_kwargs: Dict[str, Any] = dict(
             viewport={'width': 1920, 'height': 1080},
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
                        '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             http_credentials=self.config.http_credentials,
         )
+        if (self.config.login
+                and self.config.login.reuse_storage_state
+                and storage_state_valid(self.config.login)):
+            context_kwargs['storage_state'] = self.config.login.storage_state_path
+            self._used_reused_storage = True
+            logger.info("Reusing stored session from %s", self.config.login.storage_state_path)
+
+        self.context = await self.browser.new_context(**context_kwargs)
         self.page = await self.context.new_page()
 
         self._capture = RequestCapture(self.interceptor, self.config.start_url)
@@ -52,6 +64,8 @@ class APIMapper:
             logger.error("Failed to navigate to start URL")
             return {"api_calls": []}
 
+        await self._ensure_authenticated(self.page)
+
         self.interceptor.set_context(self.config.start_url, 0)
         await self._explore_page(self.page, 0)
 
@@ -59,9 +73,30 @@ class APIMapper:
         logger.info("Mapping complete. Found %d unique api calls.", len(api_calls))
         return {"api_calls": api_calls}
 
+    async def _ensure_authenticated(self, page: Page) -> None:
+        cfg = self.config.login
+        if not cfg or not is_on_login_page(page, cfg):
+            return
+
+        try:
+            await perform_login(page, cfg)
+        except Exception as e:
+            if not self._used_reused_storage:
+                raise
+            logger.warning("Login failed with reused session (%s); discarding and retrying", e)
+            try:
+                os.remove(cfg.storage_state_path)
+            except OSError:
+                pass
+            self._used_reused_storage = False
+            await page.goto(cfg.login_url, wait_until='load', timeout=self.config.wait_timeout)
+            await perform_login(page, cfg)
+
     async def _explore_page(self, page: Page, depth: int) -> None:
         if depth >= self.config.max_depth:
             return
+
+        await self._ensure_authenticated(page)
 
         base_url = page.url
         logger.info("Exploring page at depth %d: %s", depth, base_url)
