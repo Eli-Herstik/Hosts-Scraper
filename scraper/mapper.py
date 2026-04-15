@@ -1,4 +1,4 @@
-"""Main API mapping engine: orchestrates navigation, interception, and aggregation."""
+"""Main mapping engine: orchestrates navigation, interception, and aggregation."""
 import logging
 import os
 from typing import Any, Dict
@@ -16,8 +16,8 @@ from .network.auth_analyzer import aggregate_by_host
 logger = logging.getLogger(__name__)
 
 
-class APIMapper:
-    """Main API mapping engine."""
+class Mapper:
+    """Main mapping engine."""
 
     def __init__(self, config: Config):
         self.config = config
@@ -58,20 +58,20 @@ class APIMapper:
         self._capture.attach(self.page, self.context)
 
     async def map_website(self) -> Dict[str, Any]:
-        logger.info("Starting API mapping for: %s", self.config.start_url)
+        logger.info("Starting external-hosts mapping for: %s", self.config.start_url)
 
         if not await self.navigator.navigate_to(self.page, self.config.start_url, 0):
             logger.error("Failed to navigate to start URL")
-            return {"api_calls": []}
+            return {"external_hosts": []}
 
         await self._ensure_authenticated(self.page)
 
         self.interceptor.set_context(self.config.start_url, 0)
         await self._explore_page(self.page, 0)
 
-        api_calls = aggregate_by_host(self.interceptor.get_requests())
-        logger.info("Mapping complete. Found %d unique api calls.", len(api_calls))
-        return {"api_calls": api_calls}
+        external_hosts = aggregate_by_host(self.interceptor.get_requests())
+        logger.info("Mapping complete. Found %d unique external hosts.", len(external_hosts))
+        return {"external_hosts": external_hosts}
 
     async def _ensure_authenticated(self, page: Page) -> None:
         cfg = self.config.login
