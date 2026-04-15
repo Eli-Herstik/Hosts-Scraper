@@ -16,7 +16,5 @@ storage_state.json
 secrets*.json
 *.db
 .env
-tests/
+tests/integration
 .claude
-pyproject.toml
-requirements-dev.txt
