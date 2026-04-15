@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    config_path = os.environ.get("SCRAPER_CONFIG_PATH", "./config.json")
+    config_path = os.environ.get("SCRAPER_CONFIG_PATH", "/etc/scraper/config.json")
     app.state.base_config = load_config(config_path)
     max_parallel = int(os.environ.get("SCRAPER_MAX_PARALLEL", "2"))
     app.state.semaphore = asyncio.Semaphore(max_parallel)
