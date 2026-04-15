@@ -1,19 +1,24 @@
-"""Main entry point for API mapping system."""
+"""Main entry point for hosts mapping system."""
 import asyncio
 import json
 import argparse
 import logging
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from config_loader import load_config
-from scraper import APIMapper
+from scraper import Mapper
 
 logger = logging.getLogger(__name__)
 
 
 async def main():
     """Main function."""
-    parser = argparse.ArgumentParser(description='API Mapping System')
+    parser = argparse.ArgumentParser(description='Hosts Mapping System')
     parser.add_argument('--config', '-c', required=True, help='Path to configuration JSON file')
     parser.add_argument('--output', '-o', help='Output file path (overrides config)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose (DEBUG) logging')
@@ -45,7 +50,7 @@ async def main():
         config.output_file = args.output
 
     # Create mapper
-    mapper = APIMapper(config)
+    mapper = Mapper(config)
 
     try:
         # Initialize
@@ -61,7 +66,7 @@ async def main():
             json.dump(result, f, indent=2, ensure_ascii=False)
 
         logger.info("Mapping complete!")
-        logger.info("Found %d unique api calls", len(result.get('api_calls', [])))
+        logger.info("Found %d unique external hosts", len(result.get('external_hosts', [])))
         logger.info("Results saved to: %s", output_path)
 
     except KeyboardInterrupt:

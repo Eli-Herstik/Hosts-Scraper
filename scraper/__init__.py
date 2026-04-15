@@ -1,3 +1,3 @@
-from .api_mapper import APIMapper
+from .mapper import Mapper
 
-__all__ = ["APIMapper"]
+__all__ = ["Mapper"]

@@ -12,7 +12,9 @@ dist/
 build/
 *.log
 mappings_output.json
+storage_state.json
+secrets*.json
 *.db
 .env
-tests/
+tests/integration
 .claude

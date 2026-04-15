@@ -1,5 +1,6 @@
 import json
-from typing import Dict
+import os
+from typing import Dict, Optional
 from dataclasses import dataclass
 
 
@@ -9,10 +10,24 @@ class FormConfig:
     enabled: bool = True
     fill_delay: int = 100
     defaults: Dict[str, str] = None  # selector -> value mapping
-    
+
     def __post_init__(self):
         if self.defaults is None:
             self.defaults = {}
+
+
+@dataclass
+class LoginConfig:
+    """Login flow configuration. Presence of this block enables login handling."""
+    login_url: str
+    username: str
+    password: str
+    username_selector: str = "#username"
+    password_selector: str = "input[type='password']"
+    submit_selector: str = "button[type='submit']"
+    post_login_wait_ms: int = 3000
+    storage_state_path: str = "storage_state.json"
+    reuse_storage_state: bool = True
 
 
 @dataclass
@@ -27,10 +42,43 @@ class Config:
     form_filling: FormConfig = None
     exclude_patterns: list = None
     output_file: str = "mappings_output.json"
+    login: Optional[LoginConfig] = None
 
     def __post_init__(self):
         if self.exclude_patterns is None:
-            self.exclude_patterns = ["logout", "delete", "remove"]
+            self.exclude_patterns = ["logout", "delete", "remove", "login", "signin"]
+
+
+def _resolve_login(data: dict) -> Optional[LoginConfig]:
+    if 'login' not in data:
+        return None
+    block = data['login']
+
+    username_env = block.get('username_env')
+    password_env = block.get('password_env')
+    if not username_env or not password_env:
+        raise ValueError("login block requires 'username_env' and 'password_env'")
+
+    username = os.environ.get(username_env)
+    password = os.environ.get(password_env)
+    if not username or not password:
+        missing = [e for e, v in ((username_env, username), (password_env, password)) if not v]
+        raise ValueError(f"login env var(s) not set: {', '.join(missing)}")
+
+    if not block.get('login_url'):
+        raise ValueError("login block requires 'login_url'")
+
+    return LoginConfig(
+        login_url=block['login_url'],
+        username=username,
+        password=password,
+        username_selector=block.get('username_selector', "#username"),
+        password_selector=block.get('password_selector', "input[type='password']"),
+        submit_selector=block.get('submit_selector', "button[type='submit']"),
+        post_login_wait_ms=block.get('post_login_wait_ms', 3000),
+        storage_state_path=block.get('storage_state_path', "storage_state.json"),
+        reuse_storage_state=block.get('reuse_storage_state', True),
+    )
 
 
 def load_config(config_path: str) -> Config:
@@ -38,22 +86,14 @@ def load_config(config_path: str) -> Config:
     with open(config_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    http_credentials = None
-    if 'http_credentials' in data:
-        http_credentials = data['http_credentials']
+    http_credentials = data.get('http_credentials')
 
-    # Parse form config
-    form_config = None
-    if 'form_filling' in data:
-        form_data = data['form_filling']
-        form_config = FormConfig(
-            enabled=form_data.get('enabled', True),
-            fill_delay=form_data.get('fill_delay', 100),
-            defaults=form_data.get('defaults', {})
-        )
-    else:
-        # Default enabled with no specific defaults
-        form_config = FormConfig()
+    form_data = data.get('form_filling', {})
+    form_config = FormConfig(
+        enabled=form_data.get('enabled', True),
+        fill_delay=form_data.get('fill_delay', 100),
+        defaults=form_data.get('defaults', {}),
+    )
 
     return Config(
         start_url=data['start_url'],
@@ -63,7 +103,7 @@ def load_config(config_path: str) -> Config:
         network_idle_timeout=data.get('network_idle_timeout', 2000),
         http_credentials=http_credentials,
         form_filling=form_config,
-        exclude_patterns=data.get('exclude_patterns', []),
-        output_file=data.get('output_file', 'mappings_output.json')
+        exclude_patterns=data.get('exclude_patterns'),
+        output_file=data.get('output_file', 'mappings_output.json'),
+        login=_resolve_login(data),
     )
-
