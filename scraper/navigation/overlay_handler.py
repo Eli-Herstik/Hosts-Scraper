@@ -1,4 +1,5 @@
 """Handle modal dialogs, popups, and calendar overlays."""
+import asyncio
 import logging
 from typing import Iterable
 
@@ -106,7 +107,7 @@ class OverlayHandler:
             if action_taken:
                 await page.wait_for_timeout(1000)
 
-            await self._run_dismiss_selectors(page)
+            await self._run_dismiss_selectors(modal_container or page)
             await page.keyboard.press('Escape')
             await page.wait_for_timeout(500)
 
@@ -166,14 +167,14 @@ class OverlayHandler:
                 continue
         return action_taken
 
-    async def _run_dismiss_selectors(self, page: Page) -> None:
+    async def _run_dismiss_selectors(self, root) -> None:
         for selector in DISMISS_SELECTORS:
             try:
-                elements = await page.query_selector_all(selector)
+                elements = await root.query_selector_all(selector)
                 for el in elements:
                     if await el.is_visible():
                         logger.debug("Clicking dismiss action in overlay: %s", selector)
                         await el.click(timeout=2000)
-                        await page.wait_for_timeout(500)
+                        await asyncio.sleep(0.5)
             except Exception:
                 continue
